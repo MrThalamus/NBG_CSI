@@ -18,6 +18,7 @@ Decisions on ambiguous or conflicting requirements are in [REQUIREMENT_DECISIONS
 | psycopg (binary) | 3.3.6 |
 | paho-mqtt | 2.1.0 |
 | python-dotenv | 1.2.4 |
+| protobuf (optional binary encoding) | 7.36.2 |
 | OS | Windows 11 (PowerShell 5.1); the POSIX commands below are the standard equivalents |
 
 ## Repository layout
@@ -34,12 +35,14 @@ backend/                     Django project (run manage.py from here)
     modules/state/           queries.py, views.py
     modules/mqtt/            protocol.py, service.py, client.py, views.py
     modules/audit/           service.py
+    modules/pb/              codec.py + generated production_pb2.py (optional protobuf)
     shared/                  contracts, locking, clock, HTTP helpers
-    management/commands/     run_mqtt.py, demo_challenge.py
-    tests/                   87 tests (PostgreSQL)
+    management/commands/     run_mqtt.py, demo_challenge.py, proto_demo.py
+    tests/                   98 tests (PostgreSQL)
 frontend/
   templates/production/dashboard.html
   static/production/dashboard.css, dashboard.js
+proto/production.proto       Protocol Buffers contract (optional encoding)
 docs/                        demo.md, screenshots/
 .env.example                 configuration template (copy to .env)
 requirements.txt
@@ -124,7 +127,7 @@ cd backend
 python manage.py test production
 ```
 
-All 87 tests run against PostgreSQL. They cover validation, the REST contracts, VOID resolution, ACK, the state views, the section 8 demo counters, MQTT protocol/replay/checkpoint/expiry, worker reconnect and heartbeat (with a fake MQTT client), and real-thread concurrency (`TransactionTestCase`). The MQTT tests need no network; a live broker exchange is a separate demo step.
+All 98 tests run against PostgreSQL. They cover validation, the REST contracts and size limits, VOID resolution, ACK, the state views, the section 8 demo counters, MQTT protocol/replay/checkpoint/expiry/internal errors, worker reconnect and heartbeat (with a fake MQTT client), real-thread concurrency and restart persistence (`TransactionTestCase`), and the optional protobuf encoding. The MQTT tests need no network; a live broker exchange is a separate demo step.
 
 ## REST API
 
@@ -198,6 +201,32 @@ python manage.py demo_challenge --body-file ch.json --process  # REPLAY: identic
 ```
 
 The command writes events to the configured database. Point it at a scratch database (`DB_NAME=...`) if you don't want demo data there.
+
+## Protocol Buffers (optional bonus encoding)
+
+JSON is the default and is unchanged. Clients can opt in to a binary encoding defined in [proto/production.proto](proto/production.proto):
+
+| Request | Protobuf use |
+| --- | --- |
+| `POST /api/events` with `Content-Type: application/x-protobuf` | Body is an `EventBatch`; the response is `EventResults` |
+| `GET /api/state?view=summary` with `Accept: application/x-protobuf` | The response is a `Summary` |
+
+Decoded messages are converted to the same dictionaries as JSON and handled by the same service, so validation, identity and duplicate rules are shared. An event sent as protobuf and resent as JSON is a `DUPLICATE`. Errors (400/413/5xx) stay JSON. CSRF applies as for JSON.
+
+Live demo against a running server (real HTTP, creates `PB-*` events on source `LINE-PB`):
+
+```bash
+python manage.py proto_demo --base-url http://127.0.0.1:8001
+```
+
+Regenerating the Python module after editing the `.proto` (protoc via `grpcio-tools`, a development-only tool):
+
+```bash
+python -m pip install grpcio-tools
+python -m grpc_tools.protoc -Iproto --python_out=backend/production/modules/pb proto/production.proto   # from the repo root
+```
+
+The rules for changing the contract safely (field numbering, `reserved`, `optional` presence) are explained in the `.proto` header and in TECHNICAL_EXPLANATION.md §13.
 
 ## Demo
 

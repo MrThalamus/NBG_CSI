@@ -26,14 +26,15 @@ Candidate inputs and decisions during the session:
 | Business logic | `modules/events/*`, `modules/audit/*`, `modules/ack/*`, `modules/state/*`, `shared/*` | Validation, COUNT/VOID processing, pending resolution, ACK, summary/pending/exceptions queries, HTTP helpers |
 | MQTT | `modules/mqtt/*`, `management/commands/run_mqtt.py`, `demo_challenge.py` | Protocol validation, checkpointed challenge service, Paho worker, status API |
 | Frontend | `frontend/templates/production/dashboard.html`, `frontend/static/production/*` | Dashboard HTML/CSS/JS |
-| Tests | `backend/production/tests/*` | 87 PostgreSQL tests, including real-thread concurrency tests |
+| Protocol Buffers (bonus) | `proto/production.proto`, `modules/pb/*`, `management/commands/proto_demo.py` | Contract, generated module, codec, opt-in encoding in the events and state views |
+| Tests | `backend/production/tests/*` | 98 PostgreSQL tests, including real-thread concurrency and restart tests |
 | Docs | `README.md`, `TECHNICAL_EXPLANATION.md`, `docs/demo.md`, `IMPLEMENTATION_STATUS.md`, this file | Documentation drafts |
 
 ## Verification performed during the session
 
 All results are from real execution and are recorded in `IMPLEMENTATION_STATUS.md`:
 
-- Automated tests run against PostgreSQL 18 after each stage (latest: 87 tests, OK).
+- Automated tests run against PostgreSQL 18 after each stage (latest: 98 tests, OK).
 - A mutation check: disabling the global lock made a concurrency test fail, confirming the tests detect races.
 - Browser checks in headless Chrome via Playwright (desktop, 375 px mobile, dark mode, console and network errors), run against a separate scratch database.
 - A process-restart persistence check and the section 8 demo counters, executed over HTTP.

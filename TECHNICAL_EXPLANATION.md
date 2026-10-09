@@ -102,6 +102,7 @@ The exceptions view combines several queries inside one `REPEATABLE READ READ ON
 6. **Concurrency:** identical concurrent deliveries serialize on the locks. Each step re-reads the checkpoint, so items are processed exactly once and every delivery returns the same saved response (tested with 8 threads).
 7. **Publication happens only after commit**, never inside a transaction. A PUBACK proves transport delivery, not simulator acceptance. Saved responses without a successful PUBACK stay in `unpublished_responses()` and are retried on resubscription and every 30 s.
 8. **Crash recovery:** on startup, and periodically, the worker calls `resume_incomplete_challenges()`, which continues each `PROCESSING` challenge from its committed checkpoint without rerunning completed items.
+9. **Internal errors:** if processing hits an unexpected, non-database error (a bug or a poison item), the challenge is finished as `FAILED`/`INTERNAL_ERROR`. The saved response keeps the committed results and current state, so the simulator gets an answer, a redelivery replays it, and the failing item is not retried forever. Database errors are treated as transient instead: the challenge stays `PROCESSING` and is resumed when the database is back. An error before a challenge row exists still produces an unsaved `FAILED`/`INTERNAL_ERROR` response with the challenge ID when it can be read.
 
 ### Worker runtime
 
@@ -112,7 +113,7 @@ The exceptions view combines several queries inside one `REPEATABLE READ READ ON
 
 ## 9. Restart behaviour
 
-Nothing is cached in memory. A process-level check (recorded in `IMPLEMENTATION_STATUS.md`) stopped and restarted the HTTP server. The summary, pending and exceptions responses were byte-identical, a pending VOID resolved after the restart when its target arrived, and a challenge stored before the restart replayed byte-identically from a new process (after its expiry), adding no attempts.
+Nothing is cached in memory. `tests/test_restart.py` (T34) commits real data, closes the database connection and continues with fresh objects, which is all a restart amounts to here. It checks that summary, pending and exceptions are byte-identical, that a pending VOID still resolves, that a stored challenge replays byte-identically with no new attempts, and that a challenge interrupted mid-way resumes from its checkpoint. A manual process-level check (recorded in `IMPLEMENTATION_STATUS.md`) stopped and restarted the real HTTP server with the same results.
 
 ## 10. Security notes
 
@@ -146,3 +147,18 @@ What has to change, not just move:
 - **Read models** become eventually consistent. The summary must expose a watermark or version so the UI can show staleness honestly, and the single-snapshot summary guarantee only holds inside the processing service.
 - **Locking:** the global mutex becomes per-key serialization, for example partitioning the event stream by `event_id`/`target_event_id` or using advisory locks, so pending-VOID races still resolve deterministically.
 - **Observability:** correlation IDs from the MQTT challenge and REST request through to every attempt row, plus metrics for queue lag, challenge latency versus deadline, and replay and conflict rates.
+
+## 13. Protocol Buffers (optional bonus)
+
+[proto/production.proto](proto/production.proto) defines `Event`, `EventBatch`, `EventResult`, `EventResults` and `Summary` (package `nbg.production.v1`). The generated module is `modules/pb/production_pb2.py`, and the conversion code is `modules/pb/codec.py`.
+
+- **Opt-in and side by side:** `POST /api/events` with `Content-Type: application/x-protobuf`, and `GET /api/state?view=summary` with `Accept: application/x-protobuf`. Everything else, and every client that doesn't opt in, uses the unchanged JSON contract.
+- **One rule set:** a decoded `Event` becomes exactly the dictionary a JSON client would send, so it goes through the same validation, normalization, identity and audit path. An event sent as protobuf and resent as JSON is a `DUPLICATE`. Changing a field gives a `CONFLICT`.
+- **Presence semantics:** proto3 scalars have no "missing" state, so fields whose absence matters are declared `optional` (`quantity`, `target_event_id`, and `event_id`/`error_code` in results). An unset `optional` maps to JSON null/omitted, while `0` remains a real (invalid) quantity. Required strings use `""` to mean missing. Enum value `0` is always `*_UNSPECIFIED` and maps to a missing `type`.
+- **Field numbering and compatibility:**
+  - Numbers 1–15 encode in one byte, so the existing fields use them.
+  - Numbers are permanent: a field is never renumbered or reused. A removed field's number and name go into `reserved`, so they can't be reassigned by mistake.
+  - New fields always get new numbers. Old readers skip unknown fields, and new readers see missing fields as unset, which the validation rules already handle. Both directions stay wire-compatible.
+  - Breaking changes (a field's type or meaning) need a new package version (`nbg.production.v2`) served side by side.
+- `event_time` stays an ISO 8601 string rather than `google.protobuf.Timestamp`, so the "must include a timezone" rule and the original text in the audit log behave identically in both encodings.
+

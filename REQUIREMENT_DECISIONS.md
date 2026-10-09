@@ -26,6 +26,8 @@ These are project decisions, **not confirmed examiner clarifications**. If the e
 | Envelope `candidate_id` | The string `"15"` or the JSON integer `15` both match the configured `MQTT_CANDIDATE_ID`. | The photographed ID is `15`; **confirm the exact form with the examiner**. |
 | Unknown envelope keys | Tolerated (forward compatible) but included in the canonical digest. | Only per-event fields are strict. |
 | List ordering | Pending: oldest first (review queue). Exceptions: newest first. Both have a `limit` (default 200, max 1000). | "Define a stable sort order". |
+| Unexpected error while processing a challenge | Non-database error → challenge finished as `FAILED`/`INTERNAL_ERROR` with committed results and current state (saved, so redelivery replays it). Database error → challenge stays `PROCESSING` and is resumed later. | §5.5 lists `INTERNAL_ERROR`; a deterministic bug must not be retried forever, while a database outage is usually transient. |
+| Protocol Buffers (bonus) | Optional encoding for `POST /api/events` and the summary only, chosen by `Content-Type`/`Accept`; JSON stays the default; error responses stay JSON; MQTT stays JSON. | §9: existing JSON contracts must keep working. |
 
 ## Documented input limits
 
