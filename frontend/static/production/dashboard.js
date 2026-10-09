@@ -21,7 +21,20 @@
     pollTimer: null,
     lastCountId: null,
     exampleSeq: 0,
+    filterVersion: 0,   // bumped on every source change; older responses are discarded
+    loadedVersion: -1,  // filterVersion of the summary currently on screen
   };
+
+  const EMPTY_TEXT = {
+    "pending-empty": "Nothing waiting for acknowledgement.",
+    "exceptions-empty": "No exceptions.",
+  };
+
+  class Superseded extends Error {}
+
+  function ensureCurrent(version) {
+    if (version !== state.filterVersion) throw new Superseded("Source filter changed");
+  }
 
   // ------------------------------------------------------------------ helpers
 
@@ -131,21 +144,27 @@
 
   // ------------------------------------------------------------------ loaders
 
-  async function loadSummary() {
-    const summary = await api(`/api/state${query({ view: "summary", source_id: state.source })}`);
+  async function loadSummary(version, source) {
+    const summary = await api(`/api/state${query({ view: "summary", source_id: source })}`);
+    ensureCurrent(version);
+    // Only values the backend returned are shown; a missing field shows "–", never a made-up 0.
     document.querySelectorAll("[data-field]").forEach((node) => {
       const value = summary[node.dataset.field];
       node.textContent = typeof value === "number" ? value.toLocaleString() : "–";
     });
+    state.loadedVersion = version;
+    $("tiles").classList.remove("is-loading");
   }
 
-  async function loadPending() {
-    const data = await api(`/api/state${query({ view: "pending", source_id: state.source })}`);
+  async function loadPending(version, source) {
+    const data = await api(`/api/state${query({ view: "pending", source_id: source })}`);
+    ensureCurrent(version);
     renderPending(data.items);
   }
 
-  async function loadExceptions() {
-    const data = await api(`/api/state${query({ view: "exceptions", source_id: state.source })}`);
+  async function loadExceptions(version, source) {
+    const data = await api(`/api/state${query({ view: "exceptions", source_id: source })}`);
+    ensureCurrent(version);
     renderExceptions(data.items);
   }
 
@@ -159,8 +178,11 @@
       return state.refreshing;
     }
     state.refreshing = (async () => {
+      const version = state.filterVersion;
+      const source = state.source;
       const listLoader = state.tab === "pending" ? loadPending : loadExceptions;
-      const results = await Promise.allSettled([loadSummary(), listLoader(), loadMqtt()]);
+      const results = await Promise.allSettled([loadSummary(version, source), listLoader(version, source), loadMqtt()]);
+      if (version !== state.filterVersion) return; // superseded: the queued refresh renders the new filter
       const failure = results.find((r) => r.status === "rejected");
       if (failure) {
         markStale(failure.reason);
@@ -190,6 +212,15 @@
     const node = $("freshness");
     node.classList.add("is-stale");
     $("tiles").classList.add("is-stale");
+    if (state.loadedVersion !== state.filterVersion) {
+      // Nothing has loaded for this source yet: show dashes, not zeros, and say why.
+      document.querySelectorAll("[data-field]").forEach((field) => { field.textContent = "–"; });
+      $("tiles").classList.remove("is-loading");
+      Object.keys(EMPTY_TEXT).forEach((id) => {
+        $(id).textContent = "Could not load this list. It will retry automatically.";
+        $(id).hidden = false;
+      });
+    }
     const since = state.lastOkAt
       ? `Showing data from ${formatTime(state.lastOkAt.toISOString())}; it may be out of date.`
       : "No data loaded yet.";
@@ -251,6 +282,7 @@
       return row;
     });
     body.replaceChildren(...rows);
+    $("pending-empty").textContent = EMPTY_TEXT["pending-empty"];
     $("pending-empty").hidden = items.length > 0;
     $("tab-pending").textContent = `Pending ACK (${items.length})`;
     updateSelectionUi();
@@ -319,6 +351,7 @@
       ]);
     });
     $("exception-rows").replaceChildren(...rows);
+    $("exceptions-empty").textContent = EMPTY_TEXT["exceptions-empty"];
     $("exceptions-empty").hidden = items.length > 0;
     $("tab-exceptions").textContent = `Exceptions (${items.length})`;
   }
@@ -504,11 +537,34 @@
 
   // ------------------------------------------------------------------ filter
 
+  function showLoading() {
+    $("tiles").classList.remove("is-stale");
+    $("tiles").classList.add("is-loading");
+    document.querySelectorAll("[data-field]").forEach((field) => { field.textContent = "…"; });
+    ["pending-rows", "exception-rows"].forEach((id) => $(id).replaceChildren());
+    Object.keys(EMPTY_TEXT).forEach((id) => {
+      $(id).textContent = "Loading…";
+      $(id).hidden = false;
+    });
+    const node = $("freshness");
+    node.classList.remove("is-stale");
+    node.textContent = state.source ? `Loading source ${state.source}…` : "Loading all sources…";
+  }
+
   function applySource(value) {
-    state.source = value ? value.trim() || null : null;
+    const next = value ? value.trim() || null : null;
+    const changed = next !== state.source || state.loadedVersion < 0;
+    state.source = next;
     $("source-filter").value = state.source || "";
     $("summary-scope").textContent = state.source ? `(source ${state.source})` : "(all sources)";
-    state.selected.clear();
+    if (changed) {
+      state.filterVersion += 1;
+      state.lastOkAt = null;
+      state.selected.clear();
+      state.pendingIds = [];
+      updateSelectionUi();
+      showLoading();
+    }
     const url = new URL(window.location.href);
     if (state.source) url.searchParams.set("source_id", state.source);
     else url.searchParams.delete("source_id");

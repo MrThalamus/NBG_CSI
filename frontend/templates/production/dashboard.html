@@ -16,8 +16,8 @@
       <p class="subtitle">NorthBridge Garments: live production totals, corrections and acknowledgements.</p>
     </div>
     <form class="filter" id="filter-form" role="search" aria-label="Filter by production source">
-      <label for="source-filter">Source</label>
-      <input id="source-filter" name="source_id" type="text" placeholder="All sources (e.g. LINE-01)"
+      <label for="source-filter">Production source</label>
+      <input id="source-filter" name="source_id" type="text" placeholder="Source ID, e.g. LINE-01"
              maxlength="64" autocomplete="off" spellcheck="false">
       <button type="submit" class="btn">Apply</button>
       <button type="button" class="btn btn-quiet" id="clear-filter">Clear</button>
@@ -30,7 +30,7 @@
   <main id="main">
     <section aria-labelledby="summary-heading">
       <h2 id="summary-heading" class="section-title">Summary <span class="scope" id="summary-scope">(all sources)</span></h2>
-      <div class="tiles" id="tiles">
+      <div class="tiles" id="tiles" aria-live="polite">
         <div class="tile tile-hero">
           <span class="tile-label">Net total</span>
           <span class="tile-value" data-field="net_total">–</span>
@@ -60,6 +60,11 @@
           <span class="tile-label">Conflicts</span>
           <span class="tile-value" data-field="conflicts">–</span>
           <span class="tile-hint">Reused IDs with different data</span>
+        </div>
+        <div class="tile tile-reject">
+          <span class="tile-label">Rejected Submissions</span>
+          <span class="tile-value" data-field="rejected_submissions">–</span>
+          <span class="tile-hint">Invalid submissions recorded, not counted</span>
         </div>
       </div>
     </section>

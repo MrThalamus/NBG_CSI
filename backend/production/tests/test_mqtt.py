@@ -149,7 +149,7 @@ class ChallengeServiceTests(ChallengeServiceTestBase):
         self.assertEqual(response["status"], "COMPLETED")
         self.assertEqual([r["status"] for r in response["results"]],
                          ["ACCEPTED", "REJECTED", "PENDING_REFERENCE", "DUPLICATE"])
-        self.assertEqual(response["state"], summary_dict(5, 1, 1, 1, 1, 0))
+        self.assertEqual(response["state"], summary_dict(5, 1, 1, 1, 1, 0, rejected=1))
         self.assertEqual(
             list(SubmissionAttempt.objects.order_by("item_index").values_list("item_index", flat=True)), [0, 1, 2, 3]
         )

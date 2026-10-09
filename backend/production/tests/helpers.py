@@ -75,7 +75,7 @@ class ApiMixin:
         return response.json()["items"]
 
 
-def summary_dict(net, processed, pending_ack, unresolved, duplicates, conflicts):
+def summary_dict(net, processed, pending_ack, unresolved, duplicates, conflicts, rejected=0):
     return {
         "net_total": net,
         "processed_events": processed,
@@ -83,6 +83,7 @@ def summary_dict(net, processed, pending_ack, unresolved, duplicates, conflicts)
         "unresolved": unresolved,
         "duplicates": duplicates,
         "conflicts": conflicts,
+        "rejected_submissions": rejected,
     }
 
 

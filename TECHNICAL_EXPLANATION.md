@@ -78,13 +78,15 @@ The full decision table (event identity, partial batches, VOID review, rejected-
 
 ## 7. Consistent summary
 
-`get_summary()` is **one SQL statement** of scalar subqueries, so all six counters come from one snapshot even under READ COMMITTED:
+`get_summary()` is **one SQL statement** of scalar subqueries, so all seven counters come from one snapshot even under READ COMMITTED:
 
 - `net_total` = Σ accepted COUNT quantities − Σ `AppliedReversal.quantity` (filtered by the target's source)
 - `processed_events` = logical events with status `ACCEPTED` (COUNTs, including reversed ones, plus applied VOIDs)
 - `pending_ack` = `ACCEPTED` events with `acknowledged_at IS NULL` (COUNTs only, since applied VOIDs are auto-acknowledged)
 - `unresolved` = events with status `PENDING_REFERENCE`
-- `duplicates` / `conflicts` = attempts with that outcome, filtered by the **attempt's submitted source**
+- `duplicates` / `conflicts` / `rejected_submissions` = submission attempts with outcome `DUPLICATE` / `CONFLICT` / `REJECTED`, filtered by the **attempt's submitted source**. Attempts with no usable source (for example malformed JSON) appear only in the unfiltered count. `rejected_submissions` counts attempts, not distinct IDs; a VOID that waited and was later rejected while resolving is not included, because its attempt outcome stays `PENDING_REFERENCE`.
+
+The same `get_summary()` builds the `state` of every new MQTT challenge response, so new responses include `rejected_submissions`. Saved responses are replayed byte for byte and are never rewritten.
 
 The exceptions view combines several queries inside one `REPEATABLE READ READ ONLY` transaction. An unknown source naturally returns zeros and empty lists.
 

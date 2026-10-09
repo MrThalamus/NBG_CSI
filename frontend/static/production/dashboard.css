@@ -127,16 +127,25 @@ textarea[aria-invalid="true"] { border-color: var(--crit-ink); }
 
 /* ---------- tiles ---------- */
 
-.tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; }
 .tile {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+/* Cards in one row share label / value / hint rows, so numbers line up even when a label wraps. */
+@supports (grid-template-rows: subgrid) {
+  .tile { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 2px; align-content: start; }
 }
 .tile-label { font-size: 0.875rem; color: var(--ink-2); font-weight: 550; }
 .tile-value { font-size: 2rem; font-weight: 650; line-height: 1.15; overflow-wrap: anywhere; }
 .tile-hero .tile-value { font-size: 2.75rem; }
 .tile-hint { font-size: 0.78rem; color: var(--ink-3); }
 .tiles.is-stale .tile-value { color: var(--ink-3); }
+.tiles.is-loading .tile-value { color: var(--ink-3); }
+.tile-reject { background: var(--crit-bg); border-color: var(--crit-ink); }
+.tile-reject .tile-label, .tile-reject .tile-value { color: var(--crit-ink); }
+.tile-reject .tile-hint { color: var(--ink-2); }
+.tile-reject .tile-label::before { content: "✕ "; font-weight: 700; }
 
 /* ---------- badges ---------- */
 
@@ -209,7 +218,8 @@ textarea[aria-invalid="true"] { border-color: var(--crit-ink); }
 /* ---------- responsive ---------- */
 
 @media (max-width: 1100px) {
-  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tile-hero { grid-column: span 2; }
   .columns { grid-template-columns: minmax(0, 1fr); }
 }
 

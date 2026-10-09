@@ -92,7 +92,9 @@ class EventResult:
 
 # Documented input limits.
 MAX_ID_LENGTH = 64
-MAX_QUANTITY = 1_000_000
+MIN_QUANTITY = 1
+MAX_QUANTITY = 500
+QUANTITY_RULE = f"COUNT quantity must be an integer between {MIN_QUANTITY} and {MAX_QUANTITY}."
 MAX_EVENT_TIME_LENGTH = 64
 MAX_BATCH_ITEMS = 500
 MAX_ACK_IDS = 500

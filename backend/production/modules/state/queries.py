@@ -1,8 +1,9 @@
 """
 Read-side queries. All authoritative numbers come from PostgreSQL.
 
-The summary is one SQL statement (scalar subqueries), so all six counters
-come from a single snapshot even under READ COMMITTED.
+The summary is one SQL statement (scalar subqueries), so all seven counters
+come from a single snapshot even under READ COMMITTED. duplicates, conflicts and
+rejected_submissions count submission attempts, filtered by the attempt's own source.
 """
 
 from contextlib import contextmanager
@@ -13,7 +14,10 @@ from production.models import AppliedReversal, ProductionEvent, SubmissionAttemp
 from production.shared.clock import to_utc_iso
 from production.shared.contracts import EventStatus, EventType, Outcome
 
-SUMMARY_FIELDS = ("net_total", "processed_events", "pending_ack", "unresolved", "duplicates", "conflicts")
+SUMMARY_FIELDS = (
+    "net_total", "processed_events", "pending_ack", "unresolved", "duplicates", "conflicts",
+    "rejected_submissions",
+)
 
 
 def _summary_sql(filtered):
@@ -38,15 +42,18 @@ def _summary_sql(filtered):
             (SELECT COUNT(*) FROM {attempts} a
              WHERE a.outcome = '{Outcome.DUPLICATE}' {at}) AS duplicates,
             (SELECT COUNT(*) FROM {attempts} a
-             WHERE a.outcome = '{Outcome.CONFLICT}' {at}) AS conflicts
+             WHERE a.outcome = '{Outcome.CONFLICT}' {at}) AS conflicts,
+            (SELECT COUNT(*) FROM {attempts} a
+             WHERE a.outcome = '{Outcome.REJECTED}' {at}) AS rejected_submissions
     """
 
 
 def get_summary(source_id=None):
     filtered = source_id is not None
-    params = [source_id] * 7 if filtered else []
+    sql = _summary_sql(filtered)
+    params = [source_id] * sql.count("%s")
     with connection.cursor() as cursor:
-        cursor.execute(_summary_sql(filtered), params)
+        cursor.execute(sql, params)
         row = cursor.fetchone()
     return {name: int(value) for name, value in zip(SUMMARY_FIELDS, row)}
 

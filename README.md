@@ -38,7 +38,7 @@ backend/                     Django project (run manage.py from here)
     modules/pb/              codec.py + generated production_pb2.py (optional protobuf)
     shared/                  contracts, locking, clock, HTTP helpers
     management/commands/     run_mqtt.py, demo_challenge.py, proto_demo.py
-    tests/                   98 tests (PostgreSQL)
+    tests/                   110 tests (PostgreSQL)
 frontend/
   templates/production/dashboard.html
   static/production/dashboard.css, dashboard.js
@@ -127,7 +127,7 @@ cd backend
 python manage.py test production
 ```
 
-All 98 tests run against PostgreSQL. They cover validation, the REST contracts and size limits, VOID resolution, ACK, the state views, the section 8 demo counters, MQTT protocol/replay/checkpoint/expiry/internal errors, worker reconnect and heartbeat (with a fake MQTT client), real-thread concurrency and restart persistence (`TransactionTestCase`), and the optional protobuf encoding. The MQTT tests need no network; a live broker exchange is a separate demo step.
+All 110 tests run against PostgreSQL. They cover validation (including the 1–500 COUNT limit), the REST contracts and size limits, the `rejected_submissions` counter, VOID resolution, ACK, the state views, the section 8 demo counters, MQTT protocol/replay/checkpoint/expiry/internal errors, worker reconnect and heartbeat (with a fake MQTT client), real-thread concurrency and restart persistence (`TransactionTestCase`), and the optional protobuf encoding. The MQTT tests need no network; a live broker exchange is a separate demo step.
 
 ## REST API
 
@@ -136,11 +136,11 @@ All routes are exact, with no trailing slash. JSON in, JSON out.
 | Method and path | Purpose |
 | --- | --- |
 | `POST /api/events` | One event object or an array; returns `{"results": [...]}` in submitted order |
-| `GET /api/state?source_id=LINE-01&view=summary` | `view` = `summary` (default), `pending` or `exceptions`; `source_id` optional; `limit` (1–1000, default 200) for lists |
+| `GET /api/state?source_id=LINE-01&view=summary` | `view` = `summary` (default), `pending` or `exceptions`; `source_id` optional; `limit` (1–1000, default 200) for lists. The summary has seven counters: `net_total`, `processed_events`, `pending_ack`, `unresolved`, `duplicates`, `conflicts`, `rejected_submissions` |
 | `POST /api/ack` | `{"event_ids": [...]}`; returns ordered `ACKED` / `ALREADY_ACKED` / `NOT_READY` / `NOT_FOUND` |
 | `GET /api/mqtt/status` | Auxiliary: worker connection freshness, last challenge and response, counts, last error |
 
-Event object:
+Event object (a COUNT quantity must be an integer from 1 to 500; anything else is `REJECTED` with "COUNT quantity must be an integer between 1 and 500."):
 
 ```json
 {"source_id": "LINE-01", "event_id": "EV-101", "type": "COUNT", "quantity": 5,

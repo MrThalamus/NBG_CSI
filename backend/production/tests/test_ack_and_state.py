@@ -69,9 +69,10 @@ class AckTests(ApiMixin, TestCase):
 
 
 class StateViewTests(ApiMixin, TestCase):
-    def test_summary_has_exactly_six_fields_and_view_defaults(self):
+    def test_summary_has_exactly_seven_fields_and_view_defaults(self):
         self.assertEqual(set(self.client.get("/api/state").json()), {
             "net_total", "processed_events", "pending_ack", "unresolved", "duplicates", "conflicts",
+            "rejected_submissions",
         })
         self.assertEqual(self.client.get("/api/state", {"view": "totals"}).status_code, 400)
         self.assertEqual(self.client.get("/api/state", {"view": "pending", "limit": "0"}).status_code, 400)

@@ -13,6 +13,8 @@ from production.shared.contracts import (
     MAX_EVENT_TIME_LENGTH,
     MAX_ID_LENGTH,
     MAX_QUANTITY,
+    MIN_QUANTITY,
+    QUANTITY_RULE,
     ErrorCode,
     EventType,
 )
@@ -123,18 +125,9 @@ def normalize_and_validate_event(payload):
     target = payload.get("target_event_id")
 
     if event_type == EventType.COUNT:
-        if quantity is None:
-            raise EventValidationError(ErrorCode.INVALID_QUANTITY, "COUNT requires a quantity")
-        if not _is_json_integer(quantity):
-            raise EventValidationError(
-                ErrorCode.INVALID_QUANTITY, "quantity must be a whole JSON number (not text, boolean or fraction)"
-            )
-        if quantity <= 0:
-            raise EventValidationError(ErrorCode.INVALID_QUANTITY, "quantity must be greater than zero")
-        if quantity > MAX_QUANTITY:
-            raise EventValidationError(
-                ErrorCode.INVALID_QUANTITY, f"quantity must be at most {MAX_QUANTITY}"
-            )
+        # One rule for every bad COUNT quantity (missing, text, boolean, fraction, out of range).
+        if not _is_json_integer(quantity) or not MIN_QUANTITY <= quantity <= MAX_QUANTITY:
+            raise EventValidationError(ErrorCode.INVALID_QUANTITY, QUANTITY_RULE)
         if target is not None:
             raise EventValidationError(ErrorCode.INVALID_FIELD, "COUNT must not have a target_event_id")
     else:

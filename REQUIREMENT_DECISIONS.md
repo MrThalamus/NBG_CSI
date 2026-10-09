@@ -27,6 +27,8 @@ These are project decisions, **not confirmed examiner clarifications**. If the e
 | Unknown envelope keys | Tolerated (forward compatible) but included in the canonical digest. | Only per-event fields are strict. |
 | List ordering | Pending: oldest first (review queue). Exceptions: newest first. Both have a `limit` (default 200, max 1000). | "Define a stable sort order". |
 | Unexpected error while processing a challenge | Non-database error → challenge finished as `FAILED`/`INTERNAL_ERROR` with committed results and current state (saved, so redelivery replays it). Database error → challenge stays `PROCESSING` and is resumed later. | §5.5 lists `INTERNAL_ERROR`; a deterministic bug must not be retried forever, while a database outage is usually transient. |
+| COUNT quantity limit (change request) | Integers 1–500 inclusive, enforced once in the shared validator, so REST, MQTT and protobuf behave the same. Not a database constraint, so records accepted before the change stay valid. An existing ID resubmitted with 501 is `REJECTED`, not `CONFLICT`, because validation runs before identity checks. | Change request. Previously accepted records must not be invalidated retrospectively. |
+| `rejected_submissions` (change request) | Counts submission attempts with outcome `REJECTED` (item-level and request-level), filtered by the attempt's own source; attempts without a usable source count only unfiltered. | Change request: count attempts, not distinct IDs or logical events in a rejected state. |
 | Protocol Buffers (bonus) | Optional encoding for `POST /api/events` and the summary only, chosen by `Content-Type`/`Accept`; JSON stays the default; error responses stay JSON; MQTT stays JSON. | §9: existing JSON contracts must keep working. |
 
 ## Documented input limits
@@ -34,7 +36,7 @@ These are project decisions, **not confirmed examiner clarifications**. If the e
 | Limit | Value | Response when exceeded |
 | --- | --- | --- |
 | `source_id`, `event_id`, `target_event_id` | 1–64 characters after trimming, no control characters | item `REJECTED` (`INVALID_FIELD`) |
-| COUNT quantity | 1–1,000,000 | item `REJECTED` (`INVALID_QUANTITY`) |
+| COUNT quantity | integer 1–500 (change request) | item `REJECTED` (`INVALID_QUANTITY`): "COUNT quantity must be an integer between 1 and 500." |
 | `event_time` | ≤ 64 characters, ISO 8601 with a timezone, normalized to UTC | item `REJECTED` (`INVALID_EVENT_TIME`) |
 | Events per REST request | 500 | HTTP 413 (audited) |
 | Request body | 1 MiB | HTTP 413 (audited) |

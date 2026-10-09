@@ -29,7 +29,7 @@ class VoidTests(ApiMixin, TestCase):
         self.assertEqual(first["status"], "ACCEPTED")
         second = self.submit(void("V-2", "C-1"))[0]
         self.assertEqual((second["status"], second["error_code"]), ("REJECTED", "ALREADY_REVERSED"))
-        self.assertEqual(self.summary(), summary_dict(0, 2, 1, 0, 0, 0))
+        self.assertEqual(self.summary(), summary_dict(0, 2, 1, 0, 0, 0, rejected=1))
         # Replaying the winning VOID is a duplicate, never a second reversal.
         self.assertEqual(self.statuses(void("V-1", "C-1")), ["DUPLICATE"])
         self.assertEqual(self.summary()["net_total"], 0)
@@ -51,7 +51,7 @@ class VoidTests(ApiMixin, TestCase):
             result = self.submit(payload)[0]
             self.assertEqual((result["status"], result["error_code"]), ("REJECTED", code))
             self.assertFalse(ProductionEvent.objects.filter(event_id=payload["event_id"]).exists())
-        self.assertEqual(self.summary(), summary_dict(5, 3, 2, 0, 0, 0))
+        self.assertEqual(self.summary(), summary_dict(5, 3, 2, 0, 0, 0, rejected=3))
 
     def test_t13_several_pending_voids_first_valid_wins(self):
         self.submit([void("V-A", "C-1"), void("V-B", "C-1"), void("V-C", "C-1")])

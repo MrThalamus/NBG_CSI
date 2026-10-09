@@ -29,7 +29,7 @@ message Event {
   string source_id = 1;                 // empty string == missing
   string event_id = 2;                  // empty string == missing
   EventType type = 3;
-  optional int64 quantity = 4;          // COUNT: required, > 0. VOID: must be unset.
+  optional int64 quantity = 4;          // COUNT: required, 1-500. VOID: must be unset.
   optional string target_event_id = 5;  // VOID: required. COUNT: must be unset.
   string event_time = 6;                // ISO 8601 with timezone, same rules as JSON
 }
@@ -65,4 +65,5 @@ message Summary {
   int64 unresolved = 4;
   int64 duplicates = 5;
   int64 conflicts = 6;
+  int64 rejected_submissions = 7;      // added later: new number, old clients ignore it
 }
