@@ -15,7 +15,7 @@ import json
 import logging
 from dataclasses import dataclass
 from django.conf import settings
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.db.models import Count, F, Sum
 
 from production.models import MqttChallenge, MqttChallengeLog, MqttRuntimeStatus
@@ -26,6 +26,7 @@ from production.modules.mqtt.protocol import (
     build_response,
     serialize,
     topics,
+    usable_challenge_id,
     validate_challenge,
 )
 from production.modules.state.queries import get_summary
@@ -163,7 +164,7 @@ def handle_mqtt_challenge(raw):
                 _finish(challenge, ChallengeStatus.COMPLETED)
 
     if challenge.status == ChallengeStatus.PROCESSING:
-        run_challenge(challenge.pk)
+        _process_safely(challenge.pk)
     challenge.refresh_from_db()
     return ChallengeHandling(challenge.response_payload, challenge.status, kind, challenge.challenge_id, challenge.pk)
 
@@ -209,8 +210,66 @@ def resume_incomplete_challenges():
         MqttChallenge.objects.filter(status=ChallengeStatus.PROCESSING).order_by("pk").values_list("pk", flat=True)
     )
     for pk in pks:
-        run_challenge(pk)
+        _process_safely(pk)
     return pks
+
+
+def _process_safely(challenge_pk):
+    """
+    Run a challenge. An unexpected (non-database) error finalizes it as
+    FAILED / INTERNAL_ERROR with its committed results, so a failing item is not
+    retried forever and the simulator still gets an answer. Database errors
+    propagate: the challenge stays PROCESSING and is resumed once the database
+    is reachable again.
+    """
+    try:
+        run_challenge(challenge_pk)
+    except DatabaseError:
+        raise
+    except Exception:
+        logger.exception("Internal error processing challenge pk=%s", challenge_pk)
+        _fail_internal(challenge_pk)
+
+
+def _fail_internal(challenge_pk):
+    with transaction.atomic():
+        acquire_mutation_lock()
+        challenge = MqttChallenge.objects.select_for_update().get(pk=challenge_pk)
+        if challenge.status != ChallengeStatus.PROCESSING:
+            return
+        _finish(
+            challenge,
+            ChallengeStatus.FAILED,
+            ErrorCode.INTERNAL_ERROR,
+            f"Internal error while processing event {challenge.next_index + 1} of {challenge.total_items}; "
+            "committed results are kept and remaining events were not processed",
+        )
+
+
+def internal_failure(raw):
+    """Unsaved FAILED / INTERNAL_ERROR response for an error before a challenge was stored."""
+    challenge_id = None
+    try:
+        body = json.loads(raw)
+        if isinstance(body, dict):
+            challenge_id = usable_challenge_id(body.get("challenge_id"))
+    except (ValueError, TypeError):
+        pass
+    try:
+        state = get_summary()
+    except DatabaseError:
+        state = None
+    response = build_response(
+        candidate_id=_candidate(),
+        challenge_id=challenge_id,
+        status=ChallengeStatus.FAILED,
+        processed_at=clock.now(),
+        results=[],
+        state=state,
+        error_code=ErrorCode.INTERNAL_ERROR,
+        message="Internal error while handling the challenge",
+    )
+    return ChallengeHandling(serialize(response), ChallengeStatus.FAILED, "INTERNAL_ERROR", challenge_id)
 
 
 def unpublished_responses():

@@ -116,6 +116,15 @@ class BatchTests(ApiMixin, TestCase):
         self.assertEqual(ProductionEvent.objects.count(), 0)
         self.assertEqual(SubmissionAttempt.objects.get().error_code, "PAYLOAD_TOO_LARGE")
 
+    def test_request_body_size_limit(self):
+        body = json.dumps([count("EV-1", 1)]) + " " * (1_048_576 + 1)  # valid JSON, just over 1 MiB
+        response = self.post_events(body, raw=True)
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["error"], "PAYLOAD_TOO_LARGE")
+        self.assertEqual(ProductionEvent.objects.count(), 0)
+        attempt = SubmissionAttempt.objects.get()
+        self.assertEqual((attempt.outcome, attempt.error_code), ("REJECTED", "PAYLOAD_TOO_LARGE"))
+
 
 class RequestErrorTests(ApiMixin, TestCase):
     def test_t09_malformed_json_returns_400_and_is_audited(self):

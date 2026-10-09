@@ -59,7 +59,7 @@ def digest_of(canonical_body):
     return hashlib.sha256(canonical_body.encode("utf-8")).hexdigest()
 
 
-def _usable_challenge_id(value):
+def usable_challenge_id(value):
     if not isinstance(value, str) or not value.strip() or len(value) > MAX_CHALLENGE_ID_LENGTH:
         return None
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
@@ -101,7 +101,7 @@ def validate_challenge(raw, candidate_id):
     if not isinstance(body, dict):
         raise ChallengeRejected(ErrorCode.VALIDATION_ERROR, "Challenge must be a JSON object")
 
-    challenge_id = _usable_challenge_id(body.get("challenge_id"))
+    challenge_id = usable_challenge_id(body.get("challenge_id"))
     if challenge_id is None:
         raise ChallengeRejected(ErrorCode.VALIDATION_ERROR, "challenge_id must be a non-empty string")
 

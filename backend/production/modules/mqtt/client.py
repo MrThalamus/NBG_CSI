@@ -183,7 +183,7 @@ class MqttWorker:
         except Exception as exc:  # never let one bad message kill the worker
             logger.exception("Unexpected error handling challenge")
             self._persist(last_error=f"Challenge handling error: {_sanitize(exc)}", last_error_at=clock.now())
-            return
+            handling = service.internal_failure(payload)
         self._persist(last_challenge_id=handling.challenge_id, last_challenge_at=received)
         published = self._publish(self.topics["response"], handling.response_text, wait=True)
         if handling.challenge_pk is not None:

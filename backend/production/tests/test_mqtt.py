@@ -15,6 +15,10 @@ from production.tests.helpers import BASE_TIME, ApiMixin, count, iso, summary_di
 NOW = BASE_TIME + timedelta(minutes=15)
 
 
+class SimulatedCrash(BaseException):
+    """Models the process dying (like KeyboardInterrupt): not handled as an internal error."""
+
+
 class FakeClock:
     def __init__(self, start=NOW):
         self.value = start
@@ -182,12 +186,12 @@ class ChallengeServiceTests(ChallengeServiceTestBase):
         def crash_on_second(*args, **kwargs):
             calls["n"] += 1
             if calls["n"] == 2:
-                raise RuntimeError("simulated crash")
+                raise SimulatedCrash("process killed")
             return original(*args, **kwargs)
 
         raw = challenge(events=[count("A", 1), count("B", 2), count("C", 3)])
         with mock.patch("production.modules.mqtt.service.process_event", side_effect=crash_on_second):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(SimulatedCrash):
                 self.handle(raw)
         stored = MqttChallenge.objects.get()
         self.assertEqual((stored.status, stored.next_index), ("PROCESSING", 1))
@@ -210,11 +214,11 @@ class ChallengeServiceTests(ChallengeServiceTestBase):
 
         def crash_on_second_item(*args, **kwargs):
             if kwargs.get("item_index") == 1:
-                raise RuntimeError("simulated crash")
+                raise SimulatedCrash("process killed")
             return original(*args, **kwargs)
 
         with mock.patch("production.modules.mqtt.service.process_event", side_effect=crash_on_second_item):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(SimulatedCrash):
                 self.handle(challenge(events=[count("A", 1), count("B", 2)]))
         self.clock.advance(60)
         service.resume_incomplete_challenges()
@@ -222,6 +226,34 @@ class ChallengeServiceTests(ChallengeServiceTestBase):
         self.assertEqual((response["status"], response["error_code"]), ("FAILED", "CHALLENGE_EXPIRED"))
         self.assertEqual([r["event_id"] for r in response["results"]], ["A"])
         self.assertFalse(ProductionEvent.objects.filter(event_id="B").exists())
+
+
+    def test_internal_error_mid_challenge_fails_with_committed_results(self):
+        original = service.process_event
+
+        def bug_on_second_item(*args, **kwargs):
+            if kwargs.get("item_index") == 1:
+                raise ValueError("unexpected bug")
+            return original(*args, **kwargs)
+
+        raw = challenge(events=[count("A", 1), count("B", 2), count("C", 3)])
+        with mock.patch("production.modules.mqtt.service.process_event", side_effect=bug_on_second_item),                 self.assertLogs("production.modules.mqtt.service", level="ERROR"):
+            handling, response = self.handle(raw)
+        self.assertEqual((handling.kind, response["status"], response["error_code"]), ("NEW", "FAILED", "INTERNAL_ERROR"))
+        self.assertEqual([r["event_id"] for r in response["results"]], ["A"])
+        self.assertEqual(response["state"]["net_total"], 1)
+        self.assertFalse(ProductionEvent.objects.filter(event_id__in=["B", "C"]).exists())
+        # Terminal: not retried by resume, and a redelivery replays the saved failure.
+        self.assertEqual(service.resume_incomplete_challenges(), [])
+        self.assertEqual(self.handle(raw)[0].response_text, handling.response_text)
+
+    def test_internal_failure_before_storage_still_answers(self):
+        handling = service.internal_failure(challenge(challenge_id="CH-X"))
+        response = json.loads(handling.response_text)
+        self.assertEqual((response["challenge_id"], response["status"], response["error_code"]),
+                         ("CH-X", "FAILED", "INTERNAL_ERROR"))
+        self.assertEqual(response["state"], summary_dict(0, 0, 0, 0, 0, 0))
+        self.assertIsNone(json.loads(service.internal_failure(b"not json").response_text)["challenge_id"])
 
 
 class FakeInfo:
@@ -374,6 +406,19 @@ class WorkerTests(ChallengeServiceTestBase):
         worker.shutdown()
         self.assertEqual(self.status_kinds(worker)[-1], "OFFLINE")
         self.assertEqual(service.get_mqtt_status()["connection_state"], "DISCONNECTED")
+
+    def test_worker_publishes_internal_error_instead_of_staying_silent(self):
+        worker = self.make_worker()
+        self.connect(worker)
+        with mock.patch("production.modules.mqtt.service.handle_mqtt_challenge", side_effect=ValueError("bug")),                 self.assertLogs("production.modules.mqtt.client", level="ERROR"):
+            worker.client.on_message(worker.client, None, SimpleNamespace(topic="fse-01/15/challenge", payload=challenge()))
+            worker.step()
+        topic, payload, _, _ = worker.client.published[-1]
+        self.assertEqual(topic, "fse-01/15/response")
+        self.assertEqual((json.loads(payload)["status"], json.loads(payload)["error_code"]), ("FAILED", "INTERNAL_ERROR"))
+        status = service.get_mqtt_status()
+        self.assertEqual(status["last_response_status"], "FAILED")
+        self.assertIn("bug", status["last_error"])
 
     def test_status_api(self):
         response = self.client.get("/api/mqtt/status")
