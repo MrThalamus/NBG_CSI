@@ -49,6 +49,6 @@ During the session the assistant made local milestone commits to check progress.
 
 Describe what you reviewed, questioned, changed or rejected in the AI output (for example: checked the conflict-resolution table against the brief, reviewed the VOID resolution rules, ran the demo yourself).
 
-## Conversation record [candidate to complete]
+## Conversation record
 
-Attach the real conversation transcript; do not reconstruct it from memory. In Claude Code, use `/export` to save the conversation, or copy the session transcript (`.jsonl`) from `%USERPROFILE%\.claude\projects\`. Include the build guide that was given to the assistant if the submission requires it.
+The full conversation is preserved as the Claude Code session transcript (`566a11bc-598c-4922-ac62-0d94785446de.jsonl`, stored under `%USERPROFILE%\.claude\projects\`). It is available on request. It is not committed because it contains local tool output from the build machine.
