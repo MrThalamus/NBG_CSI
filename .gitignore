@@ -1,0 +1,29 @@
+# Secrets and local config
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Tooling / OS
+.pytest_cache/
+.coverage
+htmlcov/
+.vscode/
+.idea/
+*.log
+Thumbs.db
+.DS_Store
+
+# Build / packaging
+staticfiles/
+dist/
+*.zip
+*.sql
+*.dump
+
+# Locally generated demo fixtures
+ch.json
