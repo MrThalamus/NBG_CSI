@@ -14,6 +14,7 @@ Progress checklist for the CSI Smart Tech FSE 01 build. Only checks that were ac
 - [x] **Stage 7: reliability.** Real-thread concurrency tests (T30–T33), automated and process-level restart checks (T34), crash/checkpoint and publish-retry tests (T35).
 - [x] **Stage 8: documentation and repository.** README, TECHNICAL_EXPLANATION, REQUIREMENT_DECISIONS, AI_USAGE, docs/demo.md (executed), screenshots. Pushed by the candidate to https://github.com/MrThalamus/NBG_CSI. The remaining external steps are listed below.
 - [x] **Bonus: Protocol Buffers.** `proto/production.proto`, opt-in protobuf encoding for `POST /api/events` and the summary, JSON unchanged, `proto_demo` command.
+- [x] **Health check.** `GET /api/status` (`ok`, `database`, `mqtt_connected` as true/false; 200 or 503) and `python manage.py status` (same checks; exit code 0 or 1), reusing the MQTT freshness rule.
 - [x] **Change request (2026-10-09).** COUNT quantity limited to integers 1–500 in the shared validator (REST, MQTT and protobuf alike); `rejected_submissions` added to the shared summary and to new MQTT response states; source filter hardened (stale responses discarded, loading/error states, selection cleared); seventh dashboard card **Rejected Submissions**.
 
 ## Verification log
@@ -29,6 +30,7 @@ Progress checklist for the CSI Smart Tech FSE 01 build. Only checks that were ac
 | 2026-10-09 | `python manage.py test production` (Stages 6–8) | 87 tests, OK |
 | 2026-10-09 | `python manage.py test production` (after review fixes: MQTT INTERNAL_ERROR, automated T34, request-size limit, protobuf) | **98 tests, OK** |
 | 2026-10-09 | `python manage.py test production` (after the change request; 12 new tests in `test_change_request.py`, existing summary assertions extended with the new field) | **110 tests, OK**; `makemigrations --check`: no changes (no migration needed) |
+| 2026-10-09 | `python manage.py test production` (after the health check; 6 new tests in `test_health.py`) | **116 tests, OK**. Live: `GET /api/status` → 200 with `ok: true`; `manage.py status` → all true, exit code 0 |
 | 2026-10-09 | Concurrency tests with the mutex temporarily disabled (mutation check, then reverted) | 1 of 5 failed (pending VOIDs racing their target), showing the tests detect the race; all 5 pass with the mutex |
 
 Acceptance matrix coverage by automated tests: T01–T38, plus the section 8 demo counter sequence (`DemoSequenceTests`), the 1 MiB request limit, MQTT `INTERNAL_ERROR` handling and the protobuf encoding. T05, T24–T29, T33, T35 and T36 exercise the MQTT service and worker with a **fake** client; they are not live-broker evidence.

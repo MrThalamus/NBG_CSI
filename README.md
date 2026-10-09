@@ -37,8 +37,8 @@ backend/                     Django project (run manage.py from here)
     modules/audit/           service.py
     modules/pb/              codec.py + generated production_pb2.py (optional protobuf)
     shared/                  contracts, locking, clock, HTTP helpers
-    management/commands/     run_mqtt.py, demo_challenge.py, proto_demo.py
-    tests/                   110 tests (PostgreSQL)
+    management/commands/     run_mqtt.py, status.py, demo_challenge.py, proto_demo.py
+    tests/                   116 tests (PostgreSQL)
 frontend/
   templates/production/dashboard.html
   static/production/dashboard.css, dashboard.js
@@ -118,7 +118,15 @@ python manage.py runserver 127.0.0.1:8001     # HTTP server + dashboard -> http:
 python manage.py run_mqtt                      # MQTT worker; Ctrl+C stops it and publishes OFFLINE
 ```
 
-Port 8001 is used in the examples; any free port works. The MQTT worker is never started by the web server, so Django's autoreloader cannot create duplicate workers.
+Port 8001 is used in the examples; any free port works.
+
+Check health from the terminal (prints `database`, `mqtt_connected` and `ok` as true/false; exit code 0 when ok, 1 otherwise):
+
+```bash
+python manage.py status
+```
+
+The same check is available over HTTP at `GET /api/status`. The MQTT worker is never started by the web server, so Django's autoreloader cannot create duplicate workers.
 
 ## Tests
 
@@ -127,7 +135,7 @@ cd backend
 python manage.py test production
 ```
 
-All 110 tests run against PostgreSQL. They cover validation (including the 1–500 COUNT limit), the REST contracts and size limits, the `rejected_submissions` counter, VOID resolution, ACK, the state views, the section 8 demo counters, MQTT protocol/replay/checkpoint/expiry/internal errors, worker reconnect and heartbeat (with a fake MQTT client), real-thread concurrency and restart persistence (`TransactionTestCase`), and the optional protobuf encoding. The MQTT tests need no network; a live broker exchange is a separate demo step.
+All 116 tests run against PostgreSQL. They cover validation (including the 1–500 COUNT limit), the REST contracts and size limits, the `rejected_submissions` counter, VOID resolution, ACK, the state views, the section 8 demo counters, MQTT protocol/replay/checkpoint/expiry/internal errors, worker reconnect and heartbeat (with a fake MQTT client), real-thread concurrency and restart persistence (`TransactionTestCase`), and the optional protobuf encoding. The MQTT tests need no network; a live broker exchange is a separate demo step.
 
 ## REST API
 
@@ -139,6 +147,7 @@ All routes are exact, with no trailing slash. JSON in, JSON out.
 | `GET /api/state?source_id=LINE-01&view=summary` | `view` = `summary` (default), `pending` or `exceptions`; `source_id` optional; `limit` (1–1000, default 200) for lists. The summary has seven counters: `net_total`, `processed_events`, `pending_ack`, `unresolved`, `duplicates`, `conflicts`, `rejected_submissions` |
 | `POST /api/ack` | `{"event_ids": [...]}`; returns ordered `ACKED` / `ALREADY_ACKED` / `NOT_READY` / `NOT_FOUND` |
 | `GET /api/mqtt/status` | Auxiliary: worker connection freshness, last challenge and response, counts, last error |
+| `GET /api/status` | Health check: `{"ok", "database", "mqtt_connected"}` as true/false (plus MQTT state and heartbeat age); HTTP 200 when ok, 503 otherwise |
 
 Event object (a COUNT quantity must be an integer from 1 to 500; anything else is `REJECTED` with "COUNT quantity must be an integer between 1 and 500."):
 
