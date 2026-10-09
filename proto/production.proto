@@ -1,0 +1,68 @@
+// Protocol Buffers contract for the production event API (optional binary encoding).
+//
+// JSON stays the default and is unchanged. A client opts in with
+//   POST /api/events   Content-Type: application/x-protobuf   (body: EventBatch, response: EventResults)
+//   GET  /api/state?view=summary   Accept: application/x-protobuf   (response: Summary)
+// Protobuf messages are converted to the same dictionaries as JSON and processed
+// by the same service, so validation, identity and duplicate rules are identical.
+//
+// Compatibility rules for evolving this file:
+// - Field numbers are permanent. Never renumber or reuse a number; when removing a
+//   field, add it to a `reserved` list (number and name).
+// - Add new fields only with new numbers. Old clients ignore unknown fields and
+//   new servers see unset fields as missing, which the validation rules handle.
+// - Enum value 0 is always the UNSPECIFIED default and is never a real value.
+// - Fields whose absence matters use `optional` (explicit presence), so
+//   "not sent" maps to JSON null/omitted rather than to 0 or "".
+
+syntax = "proto3";
+
+package nbg.production.v1;
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;  // treated as a missing "type" -> REJECTED
+  EVENT_TYPE_COUNT = 1;
+  EVENT_TYPE_VOID = 2;
+}
+
+message Event {
+  string source_id = 1;                 // empty string == missing
+  string event_id = 2;                  // empty string == missing
+  EventType type = 3;
+  optional int64 quantity = 4;          // COUNT: required, > 0. VOID: must be unset.
+  optional string target_event_id = 5;  // VOID: required. COUNT: must be unset.
+  string event_time = 6;                // ISO 8601 with timezone, same rules as JSON
+}
+
+message EventBatch {
+  repeated Event events = 1;            // processed in order, one transaction per item
+}
+
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_ACCEPTED = 1;
+  RESULT_STATUS_PENDING_REFERENCE = 2;
+  RESULT_STATUS_DUPLICATE = 3;
+  RESULT_STATUS_CONFLICT = 4;
+  RESULT_STATUS_REJECTED = 5;
+}
+
+message EventResult {
+  optional string event_id = 1;         // unset when the item had no usable event_id
+  ResultStatus status = 2;
+  string message = 3;
+  optional string error_code = 4;
+}
+
+message EventResults {
+  repeated EventResult results = 1;     // same order as EventBatch.events
+}
+
+message Summary {
+  int64 net_total = 1;
+  int64 processed_events = 2;
+  int64 pending_ack = 3;
+  int64 unresolved = 4;
+  int64 duplicates = 5;
+  int64 conflicts = 6;
+}

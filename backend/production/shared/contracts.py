@@ -49,6 +49,7 @@ class ChallengeStatus(models.TextChoices):
 class ErrorCode:
     # Request level
     MALFORMED_JSON = "MALFORMED_JSON"
+    MALFORMED_PROTOBUF = "MALFORMED_PROTOBUF"
     INVALID_REQUEST = "INVALID_REQUEST"
     PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
     # Item validation

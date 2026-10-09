@@ -1,5 +1,6 @@
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 
+from production.modules.pb import codec as pb_codec
 from production.modules.state.queries import get_exceptions, get_pending, get_summary
 from production.shared.contracts import ErrorCode
 from production.shared.http import api_endpoint, json_error
@@ -18,7 +19,10 @@ def state_view(request):
     source_id = request.GET.get("source_id", "").strip() or None
 
     if view == "summary":
-        return JsonResponse(get_summary(source_id))
+        summary = get_summary(source_id)
+        if pb_codec.wants_protobuf(request):
+            return HttpResponse(pb_codec.encode_summary(summary), content_type=pb_codec.CONTENT_TYPE)
+        return JsonResponse(summary)
 
     raw_limit = request.GET.get("limit", "").strip()
     if raw_limit:
