@@ -53,4 +53,4 @@ Describe what you reviewed, questioned, changed or rejected in the AI output (fo
 
 ## Conversation record
 
-The full conversation is preserved as the Claude Code session transcript (`566a11bc-598c-4922-ac62-0d94785446de.jsonl`, stored under `%USERPROFILE%\.claude\projects\`). It is available on request. It is not committed because it contains local tool output from the build machine.
+A condensed history (candidate messages quoted exactly, assistant replies summarized) is in [docs/ai-chat-history.md](docs/ai-chat-history.md). The full conversation is preserved as the Claude Code session transcript (`566a11bc-598c-4922-ac62-0d94785446de.jsonl`, stored under `%USERPROFILE%\.claude\projects\`). It is available on request. It is not committed because it contains local tool output from the build machine.
