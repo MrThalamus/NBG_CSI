@@ -1,0 +1,157 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Production Monitor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{% static 'production/dashboard.css' %}">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="page-header">
+    <div class="header-text">
+      <h1>Production monitor</h1>
+      <p class="subtitle">NorthBridge Garments: live production totals, corrections and acknowledgements.</p>
+    </div>
+    <form class="filter" id="filter-form" role="search" aria-label="Filter by production source">
+      <label for="source-filter">Source</label>
+      <input id="source-filter" name="source_id" type="text" placeholder="All sources (e.g. LINE-01)"
+             maxlength="64" autocomplete="off" spellcheck="false">
+      <button type="submit" class="btn">Apply</button>
+      <button type="button" class="btn btn-quiet" id="clear-filter">Clear</button>
+      <button type="button" class="btn btn-primary" id="refresh-btn">Refresh</button>
+    </form>
+  </header>
+
+  <div class="freshness" id="freshness" role="status" aria-live="polite">Loading…</div>
+
+  <main id="main">
+    <section aria-labelledby="summary-heading">
+      <h2 id="summary-heading" class="section-title">Summary <span class="scope" id="summary-scope">(all sources)</span></h2>
+      <div class="tiles" id="tiles">
+        <div class="tile tile-hero">
+          <span class="tile-label">Net total</span>
+          <span class="tile-value" data-field="net_total">–</span>
+          <span class="tile-hint">Accepted counts minus applied voids</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Processed events</span>
+          <span class="tile-value" data-field="processed_events">–</span>
+          <span class="tile-hint">Completed counts and voids</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Pending ACK</span>
+          <span class="tile-value" data-field="pending_ack">–</span>
+          <span class="tile-hint">Completed, not yet reviewed</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Unresolved</span>
+          <span class="tile-value" data-field="unresolved">–</span>
+          <span class="tile-hint">Voids waiting for their target</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Duplicates</span>
+          <span class="tile-value" data-field="duplicates">–</span>
+          <span class="tile-hint">Replayed submissions ignored</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Conflicts</span>
+          <span class="tile-value" data-field="conflicts">–</span>
+          <span class="tile-hint">Reused IDs with different data</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="columns">
+      <section class="panel" aria-labelledby="submit-heading">
+        <h2 id="submit-heading" class="section-title">Submit events</h2>
+        <p class="help">Paste one event object or an array of events. Examples get unique IDs and the current time.</p>
+        <div class="button-row" role="group" aria-label="Insert example">
+          <button type="button" class="btn" data-example="count">COUNT example</button>
+          <button type="button" class="btn" data-example="void">VOID example</button>
+          <button type="button" class="btn" data-example="batch">Batch example</button>
+        </div>
+        <label for="event-json" class="field-label">Event JSON</label>
+        <textarea id="event-json" rows="12" spellcheck="false" aria-describedby="submit-feedback"></textarea>
+        <div class="button-row">
+          <button type="button" class="btn btn-primary" id="submit-btn">Submit</button>
+        </div>
+        <div id="submit-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div class="table-wrap" id="submit-results-wrap" hidden>
+          <table class="data-table" aria-label="Submission results">
+            <thead><tr><th scope="col">#</th><th scope="col">Event ID</th><th scope="col">Result</th><th scope="col">Message</th></tr></thead>
+            <tbody id="submit-results"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="mqtt-heading">
+        <h2 id="mqtt-heading" class="section-title">MQTT simulator link</h2>
+        <div class="mqtt-state" id="mqtt-state"><span class="badge badge-neutral">Loading…</span></div>
+        <dl class="kv" id="mqtt-details">
+          <div><dt>Candidate ID</dt><dd data-mqtt="candidate_id">–</dd></div>
+          <div><dt>Client ID</dt><dd data-mqtt="client_id">–</dd></div>
+          <div><dt>Last heartbeat</dt><dd data-mqtt="last_heartbeat_at">–</dd></div>
+          <div><dt>Last challenge</dt><dd data-mqtt="last_challenge_id">–</dd></div>
+          <div><dt>Challenge received</dt><dd data-mqtt="last_challenge_at">–</dd></div>
+          <div><dt>Last response</dt><dd data-mqtt="last_response_status">–</dd></div>
+          <div><dt>Response sent</dt><dd data-mqtt="last_response_at">–</dd></div>
+          <div><dt>Challenges</dt><dd data-mqtt="challenges">–</dd></div>
+          <div><dt>Deliveries</dt><dd data-mqtt="deliveries">–</dd></div>
+          <div><dt>Last error</dt><dd data-mqtt="last_error">–</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <section class="panel" aria-labelledby="review-heading">
+      <div class="panel-head">
+        <h2 id="review-heading" class="section-title">Review</h2>
+        <div class="tabs" role="tablist" aria-label="Review lists">
+          <button type="button" role="tab" id="tab-pending" aria-controls="panel-pending" aria-selected="true">Pending ACK</button>
+          <button type="button" role="tab" id="tab-exceptions" aria-controls="panel-exceptions" aria-selected="false" tabindex="-1">Exceptions</button>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="panel-pending" aria-labelledby="tab-pending">
+        <div class="button-row">
+          <button type="button" class="btn btn-primary" id="ack-btn" disabled>Acknowledge selected</button>
+          <span class="help" id="selection-count">0 selected</span>
+        </div>
+        <div id="ack-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div class="table-wrap">
+          <table class="data-table" aria-label="Completed counts waiting for acknowledgement">
+            <thead>
+              <tr>
+                <th scope="col" class="col-check"><input type="checkbox" id="select-all" aria-label="Select all pending events"></th>
+                <th scope="col">Event ID</th><th scope="col">Source</th><th scope="col" class="num">Qty</th>
+                <th scope="col">Event time</th><th scope="col">Received</th><th scope="col">State</th>
+              </tr>
+            </thead>
+            <tbody id="pending-rows"></tbody>
+          </table>
+        </div>
+        <p class="empty" id="pending-empty" hidden>Nothing waiting for acknowledgement.</p>
+      </div>
+
+      <div role="tabpanel" id="panel-exceptions" aria-labelledby="tab-exceptions" hidden>
+        <div class="table-wrap">
+          <table class="data-table" aria-label="Exceptions">
+            <thead>
+              <tr>
+                <th scope="col">Kind</th><th scope="col">Event ID</th><th scope="col">Source</th><th scope="col">Type</th>
+                <th scope="col" class="num">Qty</th><th scope="col">Target</th><th scope="col">Reason</th><th scope="col">When</th>
+              </tr>
+            </thead>
+            <tbody id="exception-rows"></tbody>
+          </table>
+        </div>
+        <p class="empty" id="exceptions-empty" hidden>No exceptions.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="{% static 'production/dashboard.js' %}" defer></script>
+</body>
+</html>
