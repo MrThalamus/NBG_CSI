@@ -47,10 +47,6 @@ Defects the assistant found and fixed during the session (examples): a model fie
 
 During the session the assistant made local milestone commits to check progress. At the candidate's request these were set aside (kept on a local backup branch, never pushed), and the candidate grouped and committed the same files to https://github.com/MrThalamus/NBG_CSI.
 
-## Human review and changes [candidate to complete]
-
-Describe what you reviewed, questioned, changed or rejected in the AI output (for example: checked the conflict-resolution table against the brief, reviewed the VOID resolution rules, ran the demo yourself).
-
 ## Conversation record
 
 A condensed history (candidate messages quoted exactly, assistant replies summarized) is in [docs/ai-chat-history.md](docs/ai-chat-history.md). The full conversation is preserved as the Claude Code session transcript (`566a11bc-598c-4922-ac62-0d94785446de.jsonl`, stored under `%USERPROFILE%\.claude\projects\`). It is available on request. It is not committed because it contains local tool output from the build machine.
