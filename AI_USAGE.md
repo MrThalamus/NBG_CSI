@@ -13,7 +13,7 @@ The candidate wrote a staged build specification (`PROJECT_BUILD_GUIDE.md`: requ
 
 Candidate inputs and decisions during the session:
 
-- Provided the build guide, including the proposed resolutions of the conflicting requirements (see TECHNICAL_EXPLANATION.md §3).
+- Provided the build guide, including the proposed resolutions of the conflicting requirements (see REQUIREMENT_DECISIONS.md).
 - Created the PostgreSQL role and the `NBG` database, and entered the credentials in the local `.env` (the password was never shared in the conversation).
 - Required the project to be split into separate `backend/` and `frontend/` folders.
 

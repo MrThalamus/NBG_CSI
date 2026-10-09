@@ -57,7 +57,7 @@ Screenshots: `docs/screenshots/` (`desktop.png`, `desktop-after-batch.png`, `des
 
 ## Remaining actions (external, not performed)
 
-1. Confirm with the examiner that the candidate ID is exactly `15`, and whether any §3 decision in TECHNICAL_EXPLANATION.md is overruled.
+1. Confirm with the examiner that the candidate ID is exactly `15`, and whether any decision in REQUIREMENT_DECISIONS.md is overruled.
 2. Run `python manage.py run_mqtt` while the examiner's simulator sends a challenge; capture the worker log and a dashboard screenshot of the MQTT panel as evidence (save to `docs/screenshots/`).
 3. Complete the candidate sections of `AI_USAGE.md` and attach the exported conversation.
 4. Commit and push to https://github.com/MrThalamus/NBG_CSI (`origin` is configured; the candidate makes the commits).

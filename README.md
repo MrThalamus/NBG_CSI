@@ -6,7 +6,7 @@ CSI Smart Tech FSE 01 assessment project. A Django + PostgreSQL service that rec
 - **Frontend:** plain HTML, CSS and vanilla JavaScript (`frontend/`), rendered and served by Django. There is no separate frontend server or build step.
 - **MQTT worker:** `python manage.py run_mqtt`, a second process of the same codebase.
 
-Design decisions and assumptions are in [TECHNICAL_EXPLANATION.md](TECHNICAL_EXPLANATION.md). Verified progress is tracked in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). The demo script is [docs/demo.md](docs/demo.md).
+Decisions on ambiguous or conflicting requirements are in [REQUIREMENT_DECISIONS.md](REQUIREMENT_DECISIONS.md); the design is explained in [TECHNICAL_EXPLANATION.md](TECHNICAL_EXPLANATION.md). Verified progress is tracked in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). The demo script is [docs/demo.md](docs/demo.md).
 
 ## Prerequisites (tested versions)
 

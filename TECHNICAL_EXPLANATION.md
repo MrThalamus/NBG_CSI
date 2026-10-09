@@ -50,41 +50,7 @@ The attempt outcome and the event state are deliberately separate. A VOID's firs
 
 ## 3. Decisions on ambiguous or conflicting requirements
 
-These are project decisions, **not confirmed examiner clarifications**. If the examiner rules otherwise, update this table, the code and the tests together.
-
-| Issue | Decision | Rationale / conflicting clause |
-| --- | --- | --- |
-| Event identity | `event_id` is globally unique across sources. | Follows §5.1; §7's composite-key note conflicts. ACK and VOID carry only an event ID, so global identity is the only consistent reading. Same ID on another source → `CONFLICT`. |
-| Invalid item in a batch | Partial success: one transaction per item, in submitted order. | Follows §5.2/§6.1 over §7's whole-batch rollback note. `ATOMIC_REQUESTS` is off. |
-| VOID review | A VOID is auto-acknowledged when it is applied. The pending view lists completed, unacknowledged COUNTs only. | Follows the factory workflow note (§9) over the earlier pending-view wording. |
-| MQTT data for the frontend | Extra route `GET /api/mqtt/status`. | The three required responses cannot carry connection data. |
-| Replay after expiry | An identical, terminal challenge returns its saved response even after `expires_at`; nothing is reprocessed. | Replay is not new processing. |
-| Rejected input identity | Rejected attempts (validation *or* business rejection such as wrong source) do not create a logical event and do not reserve the ID; a corrected submission may reuse it. A *valid pending* VOID does reserve its ID, even if it is later rejected while resolving. | Business rejections against an existing target are permanent facts (wrong source, target is a VOID, already reversed), so re-submitting gives the same `REJECTED` result. |
-| Source creation | On the first stored valid event. | No registration endpoint exists. |
-| Unknown event fields | Rejected (`UNKNOWN_FIELD`). | Avoids silently ignoring data that would affect duplicate comparison. |
-| Empty arrays | Events and ACK accept `[]` and return `{"results": []}`. | Unspecified; documented and tested. |
-| ACK outcomes | Completed VOID → `ALREADY_ACKED`; pending or resolution-rejected VOID → `NOT_READY`; rejected attempt with no logical event, or unknown ID → `NOT_FOUND`. | A rejected attempt has no reviewable event. |
-| Omitted `view` | Defaults to `summary`; other values → 400. | Explicit assumption. |
-| Fractions | Any JSON number with a fraction part, including `5.0`, is rejected; numeric strings are never coerced. | "Positive JSON integer". The dashboard sends the textarea text unmodified so the server, not the browser, sees `5.0`. |
-| `type` | Must be exactly `COUNT` or `VOID` (case-sensitive, no trimming). | "Exactly". IDs are trimmed but stay case-sensitive. |
-| Invalid MQTT envelope | `FAILED` with a stable code; logged in `MqttChallengeLog`; does **not** reserve the challenge ID. | Mirrors the rejected-event policy; a malformed message without an ID is logged without inventing one. |
-| New expired challenge | Stored as a terminal `FAILED`/`CHALLENGE_EXPIRED` challenge with no results, so an identical redelivery replays it and a changed body conflicts. | Valid envelopes reserve their challenge ID. |
-| Envelope `candidate_id` | The string `"15"` or the JSON integer `15` both match the configured `MQTT_CANDIDATE_ID`. | The photographed ID is `15`; **confirm the exact form with the examiner**. |
-| Unknown envelope keys | Tolerated (forward compatible) but included in the canonical digest. | Only per-event fields are strict. |
-| List ordering | Pending: oldest first (review queue). Exceptions: newest first. Both have a `limit` (default 200, max 1000). | "Define a stable sort order". |
-
-### Documented limits
-
-| Limit | Value | Response when exceeded |
-| --- | --- | --- |
-| `source_id`, `event_id`, `target_event_id` | 1–64 characters after trimming, no control characters | item `REJECTED` (`INVALID_FIELD`) |
-| COUNT quantity | 1–1,000,000 | item `REJECTED` (`INVALID_QUANTITY`) |
-| `event_time` | ≤ 64 characters, ISO 8601 with a timezone, normalized to UTC | item `REJECTED` (`INVALID_EVENT_TIME`) |
-| Events per REST request | 500 | HTTP 413 (audited) |
-| Request body | 1 MiB | HTTP 413 (audited) |
-| ACK IDs per request | 500 | HTTP 400 |
-| Events per challenge | 1000 | `FAILED` / `VALIDATION_ERROR` |
-| Challenge ID | ≤ 128 characters | `FAILED` / `VALIDATION_ERROR` |
+The full decision table (event identity, partial batches, VOID review, rejected-ID reuse, MQTT envelope and expiry rules, and others) and the documented input limits are in [REQUIREMENT_DECISIONS.md](REQUIREMENT_DECISIONS.md). They are project decisions, not confirmed examiner clarifications.
 
 ## 4. Deduplication and identity
 
@@ -163,7 +129,7 @@ Nothing is cached in memory. A process-level check (recorded in `IMPLEMENTATION_
 - The worker processes challenges one at a time. A slow database or a very large challenge could miss a 15 s deadline, which would be reported honestly as `CHALLENGE_EXPIRED`.
 - Clean sessions plus a random client-ID suffix mean the broker does not redeliver messages after a crash. Durability comes from the database checkpoints, not from broker redelivery.
 - The `runserver` command is for development; deploy with a WSGI server (for example, gunicorn or waitress) behind a reverse proxy.
-- The candidate ID form (`15`) and the §3 decisions are unconfirmed by the examiner.
+- The candidate ID form (`15`) and the decisions in REQUIREMENT_DECISIONS.md are unconfirmed by the examiner.
 
 ## 12. Future service split (not just moving folders)
 
